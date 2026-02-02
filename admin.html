@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Admin • Orders</title>
+  <style>
+    :root{--r:14px}
+    body{margin:0;font-family:system-ui,Arial;background:#0b0f17;color:#eaf0ff}
+    header{position:sticky;top:0;z-index:10;background:rgba(11,15,23,.88);backdrop-filter:blur(8px);
+      border-bottom:1px solid rgba(255,255,255,.06)}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .title{font-weight:850;font-size:20px}
+    .muted{opacity:.75;font-size:13px}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap}
+    .tab{padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);cursor:pointer}
+    .tab.active{background:#5b8cff;color:#071023;border-color:transparent;font-weight:850}
+
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;padding:18px 0}
+    @media(max-width:1100px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:700px){.grid{grid-template-columns:1fr}}
+
+    .card{border-radius:var(--r);background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
+      overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.45)}
+    .cardHead{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;gap:10px}
+    .pill{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.12);white-space:nowrap}
+    .pill.new{border-color:rgba(91,140,255,.55)}
+    .pill.accepted{border-color:rgba(141,255,176,.45)}
+    .pill.preparing{border-color:rgba(255,205,141,.45)}
+    .pill.ready{border-color:rgba(255,141,245,.45)}
+    .pill.delivered{border-color:rgba(200,200,200,.40)}
+    .pill.cancelled{border-color:rgba(255,141,141,.55)}
+
+    .cardBody{padding:14px;display:grid;gap:10px}
+    .row{display:flex;justify-content:space-between;gap:10px;align-items:center}
+    .k{opacity:.75;font-size:13px}
+    .v{font-weight:850}
+    .items{border-top:1px solid rgba(255,255,255,.05);padding-top:10px;display:grid;gap:8px}
+    .item{display:flex;justify-content:space-between;gap:10px;font-size:13px}
+    .totals{border-top:1px solid rgba(255,255,255,.05);padding-top:10px;display:grid;gap:6px}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+
+    button{border:0;border-radius:999px;padding:9px 12px;background:#5b8cff;color:#071023;font-weight:850;cursor:pointer}
+    button.secondary{background:rgba(255,255,255,.07);color:#eaf0ff;border:1px solid rgba(255,255,255,.10)}
+    button.danger{background:#ff8d8d;color:#071023}
+    button:disabled{opacity:.55;cursor:not-allowed}
+
+    .err{color:#ff8d8d;margin-top:10px}
+    .ok{color:#9cffc2;margin-top:10px}
+
+    .progress{height:8px;background:rgba(255,255,255,.05);border-radius:10px;overflow:hidden}
+    .progress i{display:block;height:100%;background:linear-gradient(90deg,#5b8cff,#4cd6b6);width:0%}
+
+    .mutedSmall{font-size:12px;opacity:.75}
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap top">
+    <div>
+      <div class="title">🧑‍🍳 Admin Orders</div>
+      <div class="muted" id="sub">Loading…</div>
+    </div>
+    <div class="tabs" id="tabs"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="msg" class="err"></div>
+  <div class="grid" id="grid"></div>
+</main>
+
+<script>
+  // ✅ Put ONLY this URL here (same as your config.js)
+  const EXEC_URL = "https://script.google.com/macros/s/AKfycby4KBuvbt6qcYXWN9g_DSV4p7bS64vCOnYXcXvyudbny7AhOqhZo7aEE8nq7zwdakl6/exec";
+  const ORDERS_API = EXEC_URL + "?action=orders";
+
+  const STATUS_ORDER = ["NEW","ACCEPTED","PREPARING","READY","DELIVERED","CANCELLED"];
+  const STATUS_LABEL = {
+    NEW:"New", ACCEPTED:"Accepted", PREPARING:"Preparing", READY:"Ready",
+    DELIVERED:"Delivered", CANCELLED:"Cancelled"
+  };
+
+  const sub = document.getElementById("sub");
+  const tabs = document.getElementById("tabs");
+  const grid = document.getElementById("grid");
+  const msg = document.getElementById("msg");
+
+  let allOrders = [];
+  let active = "NEW";
+  let isUpdating = false;
+
+  const fmt = n => "₹" + Number(n || 0).toFixed(0);
+
+  function esc(s){
+    return String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+
+  function normalizeStatus(raw){
+    const s = String(raw ?? "").trim().toUpperCase();
+    if (!s) return "NEW";
+    if (s === "CANCELED") return "CANCELLED";
+    if (s === "IN_PROGRESS") return "PREPARING";
+    if (s === "PENDING") return "NEW";
+    return s;
+  }
+
+  function safeParseItems(raw){
+    if (Array.isArray(raw)) return raw;
+    if (!raw) return [];
+    if (typeof raw === "string"){
+      const t = raw.trim();
+      if (!t) return [];
+      try { return JSON.parse(t); } catch { return []; }
+    }
+    return [];
+  }
+
+  function normalizeOrder(o){
+    const orderId = o.orderId ?? o.OrderID ?? o.id ?? o.ID ?? "-";
+    const status = normalizeStatus(o.status ?? o.Status ?? "NEW");
+    const createdAt = o.createdAt ?? o.CreatedAt ?? null;
+    const updatedAt = o.updatedAt ?? o.UpdatedAt ?? null;
+    const items = safeParseItems(o.items ?? o.Items ?? o.ItemsJSON ?? "[]");
+
+    return {
+      orderId: String(orderId),
+      status,
+      createdAt,
+      updatedAt,
+      name: o.name ?? o.Name ?? "-",
+      phone: o.phone ?? o.Phone ?? "-",
+      addressOrTable: o.addressOrTable ?? o.AddressOrTable ?? "-",
+      subtotal: Number(o.subtotal ?? o.Subtotal ?? 0),
+      gst: Number(o.gst ?? o.GST ?? 0),
+      grandTotal: Number(o.grandTotal ?? o.GrandTotal ?? 0),
+      items: (items||[]).map(it => ({
+        name: it.name ?? it.Name ?? "-",
+        qty: Number(it.qty ?? it.Qty ?? 0),
+        lineTotal: Number(it.lineTotal ?? it.LineTotal ?? 0)
+      }))
+    };
+  }
+
+  function pillClass(s){ return normalizeStatus(s).toLowerCase(); }
+
+  function progressPercent(status){
+    const s = normalizeStatus(status);
+    if (s === "CANCELLED") return 0;
+    if (s === "DELIVERED") return 100;
+    const idx = STATUS_ORDER.indexOf(s);
+    const denom = STATUS_ORDER.length - 2;
+    if (idx < 0) return 0;
+    return Math.round((Math.min(idx, denom)/denom)*100);
+  }
+
+  function nextStatus(status){
+    const s = normalizeStatus(status);
+    if (s === "CANCELLED" || s === "DELIVERED") return null;
+    const i = STATUS_ORDER.indexOf(s);
+    const n = STATUS_ORDER[i+1];
+    if (!n || n === "CANCELLED") return null;
+    return n;
+  }
+
+  function renderTabs(){
+    const counts = STATUS_ORDER.reduce((m, st) => {
+      m[st] = allOrders.filter(o => normalizeStatus(o.status) === st).length;
+      return m;
+    }, {});
+    tabs.innerHTML = STATUS_ORDER.map(st => `
+      <div class="tab ${st===active?'active':''}" data-tab="${st}">
+        ${STATUS_LABEL[st]} (${counts[st]||0})
+      </div>
+    `).join("");
+    tabs.querySelectorAll(".tab").forEach(t => {
+      t.onclick = () => {
+        active = t.dataset.tab;
+        renderTabs();
+        renderGrid();
+      };
+    });
+  }
+
+  function renderGrid(){
+    const list = allOrders
+      .filter(o => normalizeStatus(o.status) === active)
+      .slice()
+      .sort((a,b)=> new Date(b.updatedAt||b.createdAt||0) - new Date(a.updatedAt||a.createdAt||0));
+
+    if (!list.length){
+      grid.innerHTML = `<div class="muted">No orders in ${STATUS_LABEL[active]}.</div>`;
+      return;
+    }
+
+    grid.innerHTML = list.map(o => {
+      const created = o.createdAt ? new Date(o.createdAt).toLocaleString() : "-";
+      const pct = progressPercent(o.status);
+      const next = nextStatus(o.status);
+
+      const itemsHtml = (o.items||[]).map(it => `
+        <div class="item">
+          <div>${esc(it.name)} <span class="mutedSmall">× ${it.qty}</span></div>
+          <div><b>${fmt(it.lineTotal)}</b></div>
+        </div>
+      `).join("") || `<div class="muted">No items</div>`;
+
+      const done = (o.status === "DELIVERED" || o.status === "CANCELLED");
+
+      return `
+        <div class="card">
+          <div class="cardHead">
+            <div>
+              <div style="font-weight:850">${esc(o.orderId)}</div>
+              <div class="muted">${created}</div>
+            </div>
+            <div class="pill ${pillClass(o.status)}">${STATUS_LABEL[normalizeStatus(o.status)] || esc(o.status)}</div>
+          </div>
+
+          <div class="cardBody">
+            <div class="row"><div class="k">Customer</div><div class="v">${esc(o.name)}</div></div>
+            <div class="row"><div class="k">Phone</div><div class="v">${esc(o.phone)}</div></div>
+            <div class="row"><div class="k">Table/Address</div><div class="v">${esc(o.addressOrTable)}</div></div>
+
+            <div class="items">${itemsHtml}</div>
+
+            <div class="totals">
+              <div class="row"><div class="k">Subtotal</div><div class="v">${fmt(o.subtotal)}</div></div>
+              <div class="row"><div class="k">GST</div><div class="v">${fmt(o.gst)}</div></div>
+              <div class="row"><div class="k">Grand Total</div><div class="v">${fmt(o.grandTotal)}</div></div>
+            </div>
+
+            <div class="progress"><i style="width:${pct}%"></i></div>
+
+            <div class="actions">
+              ${
+                done
+                ? `<button class="secondary" disabled>Completed</button>`
+                : `
+                  ${ next ? `<button class="secondary" data-id="${esc(o.orderId)}" data-status="${next}">Move → ${STATUS_LABEL[next]}</button>` : "" }
+                  <button class="secondary" data-id="${esc(o.orderId)}" data-status="ACCEPTED">Accept</button>
+                  <button class="secondary" data-id="${esc(o.orderId)}" data-status="PREPARING">Preparing</button>
+                  <button class="secondary" data-id="${esc(o.orderId)}" data-status="READY">Ready</button>
+                  <button class="secondary" data-id="${esc(o.orderId)}" data-status="DELIVERED">Delivered</button>
+                  <button class="danger" data-id="${esc(o.orderId)}" data-status="CANCELLED">Cancel</button>
+                `
+              }
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    grid.querySelectorAll("button[data-id]").forEach(btn => {
+      btn.onclick = () => setStatus(btn.dataset.id, btn.dataset.status);
+    });
+  }
+
+  async function setStatus(orderId, status){
+    if (isUpdating) return;
+    isUpdating = true;
+
+    try{
+      const st = normalizeStatus(status);
+      const found = allOrders.find(x => String(x.orderId) === String(orderId));
+      if (found){
+        found.status = st;
+        found.updatedAt = new Date().toISOString();
+        renderTabs();
+        renderGrid();
+      }
+
+      const payload = { action: "updateStatus", orderId: String(orderId), status: String(st) };
+
+      const res = await fetch(EXEC_URL, {
+        method: "POST",
+        headers: { "Content-Type":"application/json;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Update failed");
+
+      msg.className = "ok";
+      msg.textContent = "✅ Status updated";
+      setTimeout(()=>{ msg.textContent=""; msg.className="err"; }, 1200);
+    } catch(e){
+      msg.className = "err";
+      msg.textContent = "❌ " + (e?.message || String(e));
+      await loadOrders();
+    } finally {
+      isUpdating = false;
+    }
+  }
+
+  async function loadOrders(){
+    sub.textContent = "Loading orders…";
+    try{
+      const res = await fetch(ORDERS_API + "&limit=200");
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Orders load failed");
+
+      allOrders = (json.orders || []).map(normalizeOrder);
+
+      if (!STATUS_ORDER.includes(active)) active = "NEW";
+      if (allOrders.length && allOrders.filter(o => normalizeStatus(o.status) === active).length === 0){
+        const firstNon = STATUS_ORDER.find(s => allOrders.some(o => normalizeStatus(o.status) === s));
+        if (firstNon) active = firstNon;
+      }
+
+      renderTabs();
+      renderGrid();
+
+      sub.textContent = `Loaded ${allOrders.length} orders • Auto-refresh every 8s`;
+      msg.textContent = "";
+    } catch(e){
+      sub.textContent = "Load failed";
+      msg.className = "err";
+      msg.textContent = "❌ " + (e?.message || String(e)) + " (Check EXEC_URL / deployment permissions)";
+    }
+  }
+
+  // Boot + refresh
+  loadOrders();
+  setInterval(loadOrders, 8000);
+</script>
+</body>
+</html>

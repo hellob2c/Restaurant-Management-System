@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dashboard • Orders</title>
+  <link rel="stylesheet" href="./css/dashboard.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbarRow">
+      <div class="brand">
+        <img id="logo" class="logo" alt="Logo" />
+        <div>
+          <div class="title" id="brandTitle">Orders Dashboard</div>
+          <div class="sub" id="brandSub">Loading…</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="chip" id="connChip">Connecting…</div>
+
+        <label class="field">
+          <span>From</span>
+          <input type="date" id="fromDate">
+        </label>
+
+        <label class="field">
+          <span>To</span>
+          <input type="date" id="toDate">
+        </label>
+
+        <label class="field">
+          <span>Status</span>
+          <select id="statusFilter">
+            <option value="ALL">All</option>
+            <option value="NEW">NEW</option>
+            <option value="ACCEPTED">ACCEPTED</option>
+            <option value="PREPARING">PREPARING</option>
+            <option value="READY">READY</option>
+            <option value="DELIVERED">DELIVERED</option>
+            <option value="CANCELLED">CANCELLED</option>
+          </select>
+        </label>
+
+        <button class="btn" id="refreshBtn">Refresh</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- KPI ROW -->
+    <section class="kpis" id="kpis"></section>
+
+    <!-- INSIGHTS -->
+    <section class="panel">
+      <div class="panelHead">
+        <div>
+          <div class="panelTitle">Quick Insights</div>
+          <div class="panelSub">Auto-generated pointers from your latest data</div>
+        </div>
+      </div>
+      <div class="insights" id="insights"></div>
+    </section>
+
+    <!-- CHART GRID -->
+    <section class="grid2">
+      <section class="panel">
+        <div class="panelHead">
+          <div>
+            <div class="panelTitle">Sales Trend (Last 14 days)</div>
+            <div class="panelSub">Grand Total per day</div>
+          </div>
+        </div>
+        <canvas id="trendChart" height="120"></canvas>
+      </section>
+
+      <section class="panel">
+        <div class="panelHead">
+          <div>
+            <div class="panelTitle">Status Breakdown</div>
+            <div class="panelSub">How many orders are in each stage</div>
+          </div>
+        </div>
+        <canvas id="statusChart" height="120"></canvas>
+      </section>
+    </section>
+
+    <section class="grid2">
+      <section class="panel">
+        <div class="panelHead">
+          <div>
+            <div class="panelTitle">Peak Hours</div>
+            <div class="panelSub">Orders by hour (0–23)</div>
+          </div>
+        </div>
+        <canvas id="hourChart" height="120"></canvas>
+      </section>
+
+      <section class="panel">
+        <div class="panelHead">
+          <div>
+            <div class="panelTitle">Category Revenue</div>
+            <div class="panelSub">Revenue grouped by category</div>
+          </div>
+        </div>
+        <canvas id="categoryChart" height="120"></canvas>
+      </section>
+    </section>
+
+    <!-- TABLE GRID -->
+    <section class="grid2">
+      <section class="panel">
+        <div class="panelHead">
+          <div>
+            <div class="panelTitle">Top Items</div>
+            <div class="panelSub">Most sold items (qty + revenue)</div>
+          </div>
+        </div>
+        <div class="table" id="topItems"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panelHead">
+          <div>
+            <div class="panelTitle">Top Customers</div>
+            <div class="panelSub">By total spend</div>
+          </div>
+        </div>
+        <div class="table" id="topCustomers"></div>
+      </section>
+    </section>
+
+    <section class="panel">
+      <div class="panelHead">
+        <div>
+          <div class="panelTitle">Latest Orders (Preview)</div>
+          <div class="panelSub">Useful to validate dashboard numbers</div>
+        </div>
+      </div>
+      <div class="table" id="latestOrders"></div>
+    </section>
+
+    <div class="foot">
+      <span id="lastSync">Last sync: —</span>
+      <span class="muted">Tip: Keep orders status updated for best insights.</span>
+    </div>
+  </main>
+
+  <script type="module" src="./dashboard.js"></script>
+</body>
+</html>
