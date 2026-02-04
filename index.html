@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Redirecting…</title>
+
+  <!-- Immediate redirect -->
+  <meta http-equiv="refresh" content="0; url=menu/index.html">
+
+  <!-- SEO + fallback -->
+  <link rel="canonical" href="menu/index.html">
+
+  <style>
+    body{
+      margin:0;
+      font-family:system-ui, Arial, sans-serif;
+      background:#0b0f17;
+      color:#eaf0ff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      height:100vh;
+      text-align:center;
+    }
+    a{ color:#5b8cff; text-decoration:none; font-weight:700; }
+  </style>
+
+  <script>
+    // JS redirect fallback (in case meta refresh fails)
+    window.location.replace("menu/index.html");
+  </script>
+</head>
+
+<body>
+  <div>
+    <h2>Redirecting to menu…</h2>
+    <p>If you are not redirected, <a href="menu/index.html">click here</a>.</p>
+  </div>
+</body>
+</html>
